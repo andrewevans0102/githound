@@ -1,0 +1,59 @@
+name: 'GitHound'
+description: 'Git-Driven Human-in-the-Loop Harness for Safer Coding Agents'
+author: 'Andrew Evans'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  github-token:
+    description: 'GitHub token for PR and issue automation (defaults to github.token)'
+    required: false
+    default: ${{ github.token }}
+  gemini-api-key:
+    description: 'Google Gemini API key'
+    required: true
+  test-cmd:
+    description: 'Test command to run for the verification gate (e.g. "npm test", "pytest")'
+    required: false
+    default: 'npm test'
+  typecheck-cmd:
+    description: 'Typecheck command to run for the verification gate (e.g. "npm run typecheck", "mypy .")'
+    required: false
+    default: 'npm run typecheck'
+  max-retries:
+    description: 'Maximum self-correction retries if tests fail'
+    required: false
+    default: '3'
+  model:
+    description: 'Gemini model name'
+    required: false
+    default: 'gemini-2.5-flash'
+  base-branch:
+    description: 'Base branch for PRs and diffs (defaults to main)'
+    required: false
+    default: 'main'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Install GitHound Dependencies
+      shell: bash
+      run: npm --prefix ${{ github.action_path }} ci
+
+    - name: Run GitHound Action
+      shell: bash
+      run: npx --prefix ${{ github.action_path }} tsx ${{ github.action_path }}/src/index.ts action
+      env:
+        GITHUB_TOKEN: ${{ inputs.github-token }}
+        GEMINI_API_KEY: ${{ inputs.gemini-api-key }}
+        GITHOUND_TEST_CMD: ${{ inputs.test-cmd }}
+        GITHOUND_TYPECHECK_CMD: ${{ inputs.typecheck-cmd }}
+        GITHOUND_MAX_RETRIES: ${{ inputs.max-retries }}
+        GITHOUND_MODEL: ${{ inputs.model }}
+        GITHOUND_BASE_BRANCH: ${{ inputs.base-branch }}

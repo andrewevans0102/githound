@@ -1,0 +1,45 @@
+{
+  "name": "githound",
+  "version": "1.0.0",
+  "description": "Git-Driven Human-in-the-Loop harness for safer coding agents",
+  "main": "dist/index.js",
+  "bin": {
+    "githound": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "tsx src/index.ts verify"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "git",
+    "github-actions",
+    "hitl",
+    "gemini",
+    "google",
+    "code-review"
+  ],
+  "author": "Andrew Evans",
+  "license": "MIT",
+  "dependencies": {
+    "@google/genai": "^2.31.0",
+    "@octokit/rest": "^21.1.1",
+    "commander": "^13.1.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.6"
+  }
+}
