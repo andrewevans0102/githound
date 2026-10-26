@@ -110,9 +110,11 @@ permissions:
 jobs:
   hound:
     if: >
-      (github.event_name == 'issues' && github.event.label.name == 'githound') ||
-      (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/hound')) ||
-      (github.event_name == 'pull_request_review_comment' && startsWith(github.event.comment.body, '/hound'))
+      (github.actor == github.repository_owner || github.event.sender.author_association == 'OWNER') && (
+        (github.event_name == 'issues' && github.event.label.name == 'githound' && (github.event.issue.user.login == github.repository_owner || github.event.issue.author_association == 'OWNER')) ||
+        (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/hound')) ||
+        (github.event_name == 'pull_request_review_comment' && startsWith(github.event.comment.body, '/hound'))
+      )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -212,9 +214,11 @@ GitHound can be added directly to any repository as a GitHub Action without havi
    jobs:
      hound:
        if: >
-         (github.event_name == 'issues' && github.event.label.name == 'githound') ||
-         (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/hound')) ||
-         (github.event_name == 'pull_request_review_comment' && startsWith(github.event.comment.body, '/hound'))
+         (github.actor == github.repository_owner || github.event.sender.author_association == 'OWNER') && (
+           (github.event_name == 'issues' && github.event.label.name == 'githound' && (github.event.issue.user.login == github.repository_owner || github.event.issue.author_association == 'OWNER')) ||
+           (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/hound')) ||
+           (github.event_name == 'pull_request_review_comment' && startsWith(github.event.comment.body, '/hound'))
+         )
        runs-on: ubuntu-latest
        steps:
          - name: Checkout Repository
@@ -246,6 +250,24 @@ If your team is designing custom internal agents, adopt GitHound's four core arc
 2. **Deterministic CI Oracle & Self-Correction**: Prevent agents from opening PRs or pushing commits if linters or tests fail. Feed `stderr` output back into the model to attempt self-correction, but cap retries (e.g. 3) to prevent runaway loops.
 3. **Context Compaction for Reviews**: Never feed an entire repository into a revision prompt. Provide only the PR diff against `main`, the ~20 lines surrounding the inline comment, and the reviewer's instructions.
 4. **Familiar Review Surface (Zero UI Drift)**: Do not build custom web portals or IDE extensions for reviews. Developers already know how to review GitHub Pull Request diffs and comment inline.
+
+---
+
+## 🔒 Security & Owner Privilege Enforcement
+
+When exposing LLM coding agents to GitHub issue and comment triggers, preventing prompt injection, unauthorized code commits, and LLM API cost abuse is paramount. GitHound implements a **defense-in-depth** permission model to ensure only repository owners can trigger workflows or open issues:
+
+1. **Workflow Pre-Filter (`.github/workflows/githound.yml`)**:
+   - The GitHub Actions job evaluates `github.actor == github.repository_owner || github.event.sender.author_association == 'OWNER'` before assigning a runner.
+   - For issue intake, both the issue author and the user applying the `githound` label must be the repository owner.
+   - Unauthorized triggers are skipped immediately, preventing runner minute consumption and protecting GitHub tokens and API keys.
+
+2. **Runtime Code Verification (`src/index.ts`)**:
+   - As a fail-safe, GitHound's action dispatcher programmatically validates that the event sender and issue author match the repository owner (`isOwner()`) before invoking the LLM or touching git branches.
+   - If an unauthorized user triggers an action invocation, GitHound logs a warning and exits safely.
+
+3. **Issue Guard (`.github/workflows/issue-guard.yml`)**:
+   - GitHub does not support disabling issue creation for non-owners while keeping issues enabled for owners. GitHound includes an automated issue guard workflow that detects when an issue is opened by a non-owner, immediately posts an explanatory comment, closes the issue as `not_planned`, and locks the conversation.
 
 ---
 

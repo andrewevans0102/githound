@@ -38,17 +38,42 @@ export function getOctokit(): Octokit {
   return new Octokit({ auth: token });
 }
 
-export async function runGitHubAction(): Promise<void> {
-  const eventPath = process.env.GITHUB_EVENT_PATH;
-  if (!eventPath || !fs.existsSync(eventPath)) {
-    throw new Error(`GITHUB_EVENT_PATH is not set or file does not exist: ${eventPath}`);
+export function isOwner(
+  login?: string,
+  authorAssociation?: string,
+  expectedOwner?: string
+): boolean {
+  if (authorAssociation === "OWNER") {
+    return true;
+  }
+  if (expectedOwner && login && login.toLowerCase() === expectedOwner.toLowerCase()) {
+    return true;
+  }
+  return false;
+}
+
+export async function runGitHubAction(options?: {
+  event?: any;
+  eventName?: string;
+  config?: GitHoundConfig;
+  octokit?: Octokit;
+}): Promise<void> {
+  let event: any;
+  const eventName = options?.eventName ?? process.env.GITHUB_EVENT_NAME ?? "";
+
+  if (options?.event) {
+    event = options.event;
+  } else {
+    const eventPath = process.env.GITHUB_EVENT_PATH;
+    if (!eventPath || !fs.existsSync(eventPath)) {
+      throw new Error(`GITHUB_EVENT_PATH is not set or file does not exist: ${eventPath}`);
+    }
+    const raw = fs.readFileSync(eventPath, "utf-8");
+    event = JSON.parse(raw);
   }
 
-  const raw = fs.readFileSync(eventPath, "utf-8");
-  const event = JSON.parse(raw);
-  const eventName = process.env.GITHUB_EVENT_NAME || "";
-  const config = getConfig();
-  const octokit = getOctokit();
+  const config = options?.config ?? getConfig();
+  const octokit = options?.octokit ?? getOctokit();
 
   console.log(HARVEY_ASCII);
   console.log(`🐾 Running GitHound for event: ${eventName}`);
@@ -56,6 +81,20 @@ export async function runGitHubAction(): Promise<void> {
   if (eventName === "issues" && event.action === "labeled") {
     if (event.label?.name !== "githound") {
       console.log(`Issue label "${event.label?.name}" is not "githound". Skipping.`);
+      return;
+    }
+
+    const issueAuthor = event.issue?.user?.login;
+    const issueAssoc = event.issue?.author_association;
+    if (!isOwner(issueAuthor, issueAssoc, config.owner)) {
+      console.warn(`Unauthorized: Issue #${event.issue?.number} was opened by non-owner "${issueAuthor}". Skipping.`);
+      return;
+    }
+
+    const senderLogin = event.sender?.login;
+    const senderAssoc = event.sender?.author_association;
+    if (!isOwner(senderLogin, senderAssoc, config.owner)) {
+      console.warn(`Unauthorized: Label "githound" was applied by non-owner "${senderLogin}". Skipping.`);
       return;
     }
 
@@ -82,6 +121,13 @@ export async function runGitHubAction(): Promise<void> {
     const commentBody = (event.comment?.body || "").trim();
     if (!commentBody.startsWith("/hound")) {
       console.log("Comment does not start with /hound. Skipping.");
+      return;
+    }
+
+    const commenterLogin = event.comment?.user?.login || event.sender?.login;
+    const commenterAssoc = event.comment?.author_association || event.sender?.author_association;
+    if (!isOwner(commenterLogin, commenterAssoc, config.owner)) {
+      console.warn(`Unauthorized: /hound command invoked by non-owner "${commenterLogin}". Skipping.`);
       return;
     }
 
