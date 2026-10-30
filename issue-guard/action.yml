@@ -1,0 +1,45 @@
+name: 'GitHound Issue Guard'
+description: 'Automatically rejects, closes, and locks issues opened by non-owners'
+author: 'Andrew Evans'
+branding:
+  icon: 'shield-alert'
+  color: 'red'
+
+inputs:
+  github-token:
+    description: 'GitHub token for closing and locking issues (defaults to github.token)'
+    required: false
+    default: ${{ github.token }}
+  message:
+    description: 'Explanatory message posted when closing the issue'
+    required: false
+    default: '🐾 GitHound only accepts issues opened by the repository owner. This issue has been automatically closed.'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Reject and Close Issue
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const message = `${{ inputs.message }}`;
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: message
+          });
+          await github.rest.issues.update({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            state: 'closed',
+            state_reason: 'not_planned'
+          });
+          await github.rest.issues.lock({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            lock_reason: 'resolved'
+          });
