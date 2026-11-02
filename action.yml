@@ -28,7 +28,7 @@ inputs:
   model:
     description: 'Gemini model name'
     required: false
-    default: 'gemini-2.5-flash'
+    default: 'gemini-3.8-flash'
   base-branch:
     description: 'Base branch for PRs and diffs (defaults to main)'
     required: false
