@@ -84,7 +84,7 @@ GITHUB_REPOSITORY=owner/repo
 GITHOUND_MAX_RETRIES=3
 GITHOUND_TEST_CMD=npm test
 GITHOUND_TYPECHECK_CMD=npm run typecheck
-GITHOUND_MODEL=gemini-2.5-flash
+GITHOUND_MODEL=gemini-3.8-flash
 ```
 
 ### 3. GitHub Actions Workflow

@@ -50,7 +50,7 @@ export class ModelClient {
   private ai: GoogleGenAI;
   private model: string;
 
-  constructor(apiKey?: string, model = "gemini-2.5-flash") {
+  constructor(apiKey?: string, model = "gemini-3.8-flash") {
     this.ai = new GoogleGenAI({
       apiKey: apiKey || process.env.GEMINI_API_KEY,
     });

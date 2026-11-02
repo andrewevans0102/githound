@@ -29,7 +29,7 @@ describe("Owner Authorization & Dispatcher Security", () => {
       maxRetries: 1,
       testCommand: "npm test",
       typecheckCommand: "npm run typecheck",
-      model: "gemini-2.5-flash",
+      model: "gemini-3.8-flash",
       botName: "githound[bot]",
       botEmail: "githound[bot]@users.noreply.github.com",
       baseBranch: "main",

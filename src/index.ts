@@ -23,7 +23,7 @@ export function getConfig(): GitHoundConfig {
     maxRetries: Number(process.env.GITHOUND_MAX_RETRIES || 3),
     testCommand: process.env.GITHOUND_TEST_CMD || "npm test",
     typecheckCommand: process.env.GITHOUND_TYPECHECK_CMD || "npm run typecheck",
-    model: process.env.GEMINI_MODEL || process.env.GITHOUND_MODEL || "gemini-2.5-flash",
+    model: process.env.GEMINI_MODEL || process.env.GITHOUND_MODEL || "gemini-3.8-flash",
     botName: process.env.GITHOUND_BOT_NAME || "githound[bot]",
     botEmail: process.env.GITHOUND_BOT_EMAIL || "githound[bot]@users.noreply.github.com",
     baseBranch: process.env.GITHOUND_BASE_BRANCH || "main",
