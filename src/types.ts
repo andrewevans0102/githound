@@ -5,6 +5,7 @@ export interface ReviewContext {
   commentPath?: string;
   commentBody: string;
   lineSnippet?: string;
+  fullFileContent?: string;
 }
 
 export interface IssueContext {

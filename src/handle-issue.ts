@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import { formatPrDescription } from "./ascii.js";
+import { extractFailureRelatedFiles, extractRepoContext } from "./extract-context.js";
 import { GitManager } from "./git.js";
 import { ModelClient } from "./llm.js";
 import { VerificationRunner } from "./runner.js";
@@ -23,7 +24,7 @@ export async function handleIssueIntake(params: {
     octokit,
     config,
     issue,
-    repoContext,
+    repoContext: providedRepoContext,
     gitManager = new GitManager(),
     modelClient = new ModelClient(undefined, config.model),
     verificationRunner = new VerificationRunner(),
@@ -35,6 +36,9 @@ export async function handleIssueIntake(params: {
   const branchName = `githound/issue-${issue.issueNumber}`;
   console.log(`Creating isolated branch: ${branchName}`);
   gitManager.checkoutBranch(branchName, true);
+
+  // Extract repo context if not explicitly provided
+  const repoContext = providedRepoContext ?? extractRepoContext();
 
   // 2. Initial LLM code generation
   console.log("Generating solution with Gemini...");
@@ -79,10 +83,23 @@ export async function handleIssueIntake(params: {
 
     if (attempts < config.maxRetries) {
       console.log("Feeding failure output back to Gemini for self-correction...");
+
+      const currentFileContents = accumulatedEdits
+        .map((e) => {
+          const content = typeof gitManager.getFileContent === "function" ? gitManager.getFileContent(e.path) : null;
+          return content !== null ? { path: e.path, content } : null;
+        })
+        .filter((item): item is { path: string; content: string } => item !== null);
+
+      const relatedFiles = extractFailureRelatedFiles(lastFailure);
+
       const correction = await modelClient.generateCorrection({
         originalGoal: `Issue #${issue.issueNumber}: ${issue.title}\n${issue.body}`,
         failureSummary: lastFailure,
         previousEdits: accumulatedEdits,
+        currentFileContents,
+        relatedFiles,
+        repoContext,
       });
 
       if (correction.edits.length > 0) {

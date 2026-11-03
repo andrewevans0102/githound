@@ -88,6 +88,7 @@ describe("Handlers: Issue Intake & PR Revision", () => {
       applyFileEdits: vi.fn().mockReturnValue(["src/slugify.ts"]),
       commitAll: vi.fn().mockReturnValue("fedcba0987654321"),
       pushBranch: vi.fn(),
+      getFileContent: vi.fn().mockReturnValue("function slugify() {}"),
     };
 
     const mockModel: any = {

@@ -1,5 +1,6 @@
 import { Octokit } from "@octokit/rest";
 import { formatRevisionComment } from "./ascii.js";
+import { extractFailureRelatedFiles } from "./extract-context.js";
 import { GitManager } from "./git.js";
 import { ModelClient } from "./llm.js";
 import { VerificationRunner } from "./runner.js";
@@ -93,10 +94,22 @@ export async function handlePrRevision(params: {
 
     if (attempts < config.maxRetries) {
       console.log("Re-prompting model with compiler/test failure output...");
+
+      const currentFileContents = accumulatedEdits
+        .map((e) => {
+          const content = typeof gitManager.getFileContent === "function" ? gitManager.getFileContent(e.path) : null;
+          return content !== null ? { path: e.path, content } : null;
+        })
+        .filter((item): item is { path: string; content: string } => item !== null);
+
+      const relatedFiles = extractFailureRelatedFiles(lastFailure);
+
       const correction = await modelClient.generateCorrection({
         originalGoal: `Address PR #${ctx.prNumber} review comment: "${ctx.commentBody}"`,
         failureSummary: lastFailure,
         previousEdits: accumulatedEdits,
+        currentFileContents,
+        relatedFiles,
       });
 
       if (correction.edits.length > 0) {
