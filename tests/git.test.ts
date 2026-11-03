@@ -59,4 +59,13 @@ describe("GitManager", () => {
     git.applyFileEdits([{ path: "temp.txt", content: "", action: "delete" }]);
     expect(fs.existsSync(path.join(tempDir, "temp.txt"))).toBe(false);
   });
+
+  it("reads file content and lists tracked files", () => {
+    git.applyFileEdits([{ path: "tracked.txt", content: "hello hound", action: "create" }]);
+    git.commitAll("add tracked file");
+
+    expect(git.getFileContent("tracked.txt")).toBe("hello hound");
+    expect(git.getFileContent("nonexistent.txt")).toBeNull();
+    expect(git.listTrackedFiles()).toContain("tracked.txt");
+  });
 });

@@ -64,6 +64,26 @@ export class GitManager {
     }
   }
 
+  getFileContent(filePath: string): string | null {
+    try {
+      const fullPath = path.resolve(this.cwd, filePath);
+      if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+        return fs.readFileSync(fullPath, "utf-8");
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  listTrackedFiles(): string[] {
+    try {
+      return this.exec("git ls-files").split("\n").map((f) => f.trim()).filter(Boolean);
+    } catch {
+      return [];
+    }
+  }
+
   getLatestCommitHash(): string {
     return this.exec("git rev-parse HEAD");
   }

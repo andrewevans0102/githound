@@ -71,13 +71,14 @@ Title: "${params.title}"
 Description:
 ${params.body}
 
-${params.repoContext ? `Repository Context:\n${params.repoContext}` : ""}
-
+${params.repoContext ? `Repository Context & Existing Files:\n${params.repoContext}\n` : ""}
 Instructions:
 1. Provide the complete code edits needed to solve this issue.
-2. Use the \`write_file\` tool to create or update files.
-3. Keep changes clean, minimal, robust, and well-tested.
-4. Include unit tests for any new logic where applicable.
+2. Carefully inspect the existing repository files, module exports, and test expectations provided in the context.
+3. Preserve existing exported functions, constants, and types required by tests and other modules, unless explicitly asked to modify them.
+4. Use the \`write_file\` tool to create or update files.
+5. Keep changes clean, minimal, robust, and well-tested.
+6. Include or update unit tests for any new logic where applicable.
 `;
 
     return this.runModelLoop(prompt);
@@ -90,7 +91,7 @@ The reviewer left the following feedback on pull request #${ctx.prNumber}:
 "${ctx.commentBody}"
 
 ${ctx.commentPath ? `Target File: ${ctx.commentPath}` : ""}
-${ctx.lineSnippet ? `Code context near comment:\n\`\`\`\n${ctx.lineSnippet}\n\`\`\`` : ""}
+${ctx.fullFileContent ? `Current Target File Content:\n\`\`\`\n${ctx.fullFileContent}\n\`\`\`` : (ctx.lineSnippet ? `Code context near comment:\n\`\`\`\n${ctx.lineSnippet}\n\`\`\`` : "")}
 
 Current PR Diff:
 \`\`\`diff
@@ -100,8 +101,9 @@ ${ctx.diff}
 Instructions:
 1. Address the review comment precisely.
 2. Ensure changes are minimal and adhere strictly to project conventions.
-3. Use the \`write_file\` tool to update files.
-4. Update or add unit tests if the reviewer requested test coverage.
+3. Preserve existing exports, imports, and architectural patterns.
+4. Use the \`write_file\` tool to update files.
+5. Update or add unit tests if the reviewer requested test coverage.
 `;
 
     return this.runModelLoop(prompt);
@@ -111,7 +113,26 @@ Instructions:
     originalGoal: string;
     failureSummary: string;
     previousEdits: FileEdit[];
+    currentFileContents?: Array<{ path: string; content: string }>;
+    relatedFiles?: Array<{ path: string; content: string }>;
+    repoContext?: string;
   }): Promise<ModelEditResult> {
+    const contextSections: string[] = [];
+
+    if (params.currentFileContents && params.currentFileContents.length > 0) {
+      contextSections.push("Current On-Disk Content of Modified Files:");
+      for (const f of params.currentFileContents) {
+        contextSections.push(`--- File: ${f.path} ---\n${f.content}\n`);
+      }
+    }
+
+    if (params.relatedFiles && params.relatedFiles.length > 0) {
+      contextSections.push("Failing Tests or Related Files in Repository:");
+      for (const f of params.relatedFiles) {
+        contextSections.push(`--- File: ${f.path} ---\n${f.content}\n`);
+      }
+    }
+
     const prompt = `
 You are GitHound powered by Google Gemini. The previous code modifications triggered a failure in the deterministic verification gate.
 
@@ -126,10 +147,13 @@ ${params.failureSummary}
 Previously modified files:
 ${params.previousEdits.map((e) => `- ${e.path} (${e.action})`).join("\n")}
 
+${contextSections.length > 0 ? contextSections.join("\n") + "\n" : ""}
 Instructions:
 1. Analyze the exact compiler, typechecker, or test failure above.
-2. Provide corrective file updates using the \`write_file\` tool to fix the errors.
-3. Do not introduce extraneous changes.
+2. Inspect the current file contents and failing tests carefully to understand the exact assertion or syntax error.
+3. Preserve all required module exports, function signatures, and architectural conventions tested by the test suite.
+4. Provide corrective file updates using the \`write_file\` tool to fix the errors.
+5. Do not introduce extraneous changes.
 `;
 
     return this.runModelLoop(prompt);

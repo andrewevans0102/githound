@@ -5,7 +5,7 @@ import { Command } from "commander";
 import * as dotenv from "dotenv";
 import * as fs from "node:fs";
 import { HARVEY_ASCII } from "./ascii.js";
-import { extractReviewContext } from "./extract-context.js";
+import { extractRepoContext, extractReviewContext } from "./extract-context.js";
 import { handleIssueIntake } from "./handle-issue.js";
 import { handlePrRevision } from "./handle-revision.js";
 import { VerificationRunner } from "./runner.js";
@@ -106,10 +106,13 @@ export async function runGitHubAction(options?: {
       labels: (event.issue.labels || []).map((l: any) => l.name),
     };
 
+    const repoContext = extractRepoContext();
+
     await handleIssueIntake({
       octokit,
       config,
       issue: issueContext,
+      repoContext,
     });
     return;
   }
@@ -203,6 +206,7 @@ export function createCli(): Command {
     .action(async (opts) => {
       const config = getConfig();
       const octokit = getOctokit();
+      const repoContext = extractRepoContext();
       await handleIssueIntake({
         octokit,
         config,
@@ -213,6 +217,7 @@ export function createCli(): Command {
           branchName: `githound/issue-${opts.number}`,
           labels: ["githound"],
         },
+        repoContext,
       });
     });
 
