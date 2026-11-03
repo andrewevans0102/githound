@@ -227,7 +227,7 @@ GitHound can be added directly to any repository as a GitHub Action without havi
              fetch-depth: 0
 
           - name: Run GitHound
-            uses: andrewevans0102/githound@master
+            uses: andrewevans0102/githound@main
             with:
               gemini-api-key: ${{ secrets.GEMINI_API_KEY }}
               github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -249,7 +249,7 @@ GitHound can be added directly to any repository as a GitHub Action without havi
        runs-on: ubuntu-latest
        steps:
          - name: Guard Non-Owner Issue
-           uses: andrewevans0102/githound/issue-guard@master
+           uses: andrewevans0102/githound/issue-guard@main
    ```
 
 4. **Triggering Workflows**:
@@ -280,7 +280,7 @@ When exposing LLM coding agents to GitHub issue and comment triggers, preventing
    - As a fail-safe, GitHound's action dispatcher programmatically validates that the event sender and issue author match the repository owner (`isOwner()`) before invoking the LLM or touching git branches.
    - If an unauthorized user triggers an action invocation, GitHound logs a warning and exits safely.
 
-3. **Issue Guard Sub-Action (`andrewevans0102/githound/issue-guard@master`)**:
+3. **Issue Guard Sub-Action (`andrewevans0102/githound/issue-guard@main`)**:
    - GitHub does not support disabling issue creation for non-owners while keeping issues enabled for owners. GitHound provides a reusable composite sub-action (`issue-guard`) that automatically detects when an issue is opened by a non-owner, posts an explanatory comment, closes the issue as `not_planned`, and locks the conversation without exposing your LLM keys.
 
 ---
