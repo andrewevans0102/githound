@@ -61,60 +61,50 @@ flowchart TD
 
 ## 🚀 Getting Started
 
-### 1. Installation
+### Configure GitHub
 
-Clone and install dependencies:
+1. Add a repository Actions secret named `GEMINI_API_KEY` with your Google Gemini API key.
+2. In **Settings → Actions → General → Workflow permissions**, enable read and write permissions and allow GitHub Actions to create pull requests.
+3. Create an issue label named `githound`.
+4. Add the workflow below as `.github/workflows/githound.yml`. It uses `@v1`, which will be available after the first v1 release. Before then, use a tested full commit SHA to validate the action.
 
-```bash
-git clone https://github.com/andrewevans0102/githound.git
-cd githound
-npm install
-```
-
-### 2. Environment Variables
-
-Create a `.env` file (see `.env.example`):
-
-```bash
-GITHUB_TOKEN=ghp_your_github_token
-GEMINI_API_KEY=your_gemini_api_key
-GITHUB_REPOSITORY=owner/repo
-
-# Optional overrides:
-GITHOUND_MAX_RETRIES=3
-GITHOUND_TEST_CMD=npm test
-GITHOUND_TYPECHECK_CMD=npm run typecheck
-GITHOUND_MODEL=gemini-3.8-flash
-```
-
-### 3. GitHub Actions Workflow
-
-Add `.github/workflows/githound.yml` to your repository:
+GitHound runs repository-configured test and typecheck commands, sends prompts and relevant code context to Gemini, and can push commits and open pull requests. Review the permissions and owner-only trigger filter below before enabling it. Do not expose the API key or write token to workflows triggered by untrusted users.
 
 ```yaml
 name: GitHound HITL Loop
 
 on:
   issues:
-    types: [labeled]
+    types: [opened, labeled]
   issue_comment:
     types: [created]
   pull_request_review_comment:
     types: [created]
 
-permissions:
-  contents: write
-  pull-requests: write
-  issues: write
+permissions: {}
 
 jobs:
+  # Optional: close and lock issues opened by non-owners.
+  issue-guard:
+    if: github.event_name == 'issues' && github.event.action == 'opened' && github.actor != github.repository_owner && github.event.issue.author_association != 'OWNER'
+    permissions:
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Guard Non-Owner Issue
+        uses: andrewevans0102/githound/issue-guard@v1
+
   hound:
     if: >
       (github.actor == github.repository_owner || github.event.sender.author_association == 'OWNER') && (
-        (github.event_name == 'issues' && github.event.label.name == 'githound' && (github.event.issue.user.login == github.repository_owner || github.event.issue.author_association == 'OWNER')) ||
+        (github.event_name == 'issues' && github.event.action == 'labeled' && github.event.label.name == 'githound' && (github.event.issue.user.login == github.repository_owner || github.event.issue.author_association == 'OWNER')) ||
         (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/hound')) ||
         (github.event_name == 'pull_request_review_comment' && startsWith(github.event.comment.body, '/hound'))
       )
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -122,21 +112,31 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - name: Run GitHound
+        uses: andrewevans0102/githound@v1
         with:
-          node-version: 22
-          cache: 'npm'
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Run GitHound Dispatcher
-        run: npx tsx ./src/index.ts action
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          gemini-api-key: ${{ secrets.GEMINI_API_KEY }}
+          test-cmd: "npm test"
+          typecheck-cmd: "npm run typecheck"
+          max-retries: "3"
+          base-branch: "main"
 ```
+
+The GitHub Actions token is used by default. Set `github-token` explicitly only when you need to provide a different token. For a working end-to-end example—including a small test project—see [githound-doghouse](https://github.com/andrewevans0102/githound-doghouse).
+
+### Action inputs
+
+| Input | Required | Default | Description |
+| --- | --- | --- | --- |
+| `gemini-api-key` | Yes | — | Google Gemini API key. |
+| `github-token` | No | `${{ github.token }}` | Token used for issue and pull request automation. |
+| `test-cmd` | No | `npm test` | Repository test command run by the verification gate. |
+| `typecheck-cmd` | No | `npm run typecheck` | Repository typecheck command run by the verification gate. |
+| `max-retries` | No | `3` | Maximum self-correction attempts after verification fails. |
+| `model` | No | `gemini-3.8-flash` | Gemini model name. |
+| `base-branch` | No | `main` | Base branch for pull requests and diffs. |
+
+For consumers requiring an immutable dependency, replace `@v1` with the full commit SHA for the release you reviewed.
 
 ---
 
@@ -186,75 +186,9 @@ No. GitHound is an **agent harness and workflow orchestration framework**, not a
 
 Teams can adopt GitHound in their own projects in two ways:
 
-#### Option 1: Drop GitHound into Your Existing Repository
+#### Option 1: Use GitHound as an Action
 
-GitHound can be added directly to any repository as a GitHub Action without having to install dependencies or copy any source code. It is language-agnostic at runtime—it simply invokes your repo's configured test and typecheck commands. Whether your project is TypeScript, Python, Go, or Rust:
-
-1. **Add Secrets**:
-   - Add `GEMINI_API_KEY` to your GitHub repository secrets (Settings > Secrets and variables > Actions).
-   - Ensure GitHub Actions has `Read and write permissions` under **Settings > Actions > General > Workflow permissions**.
-
-2. **Add Workflow (`.github/workflows/githound.yml`)**:
-   ```yaml
-   name: GitHound HITL Loop
-
-   on:
-     issues:
-       types: [labeled]
-     issue_comment:
-       types: [created]
-     pull_request_review_comment:
-       types: [created]
-
-   permissions:
-     contents: write
-     pull-requests: write
-     issues: write
-
-   jobs:
-     hound:
-       if: >
-         (github.actor == github.repository_owner || github.event.sender.author_association == 'OWNER') && (
-           (github.event_name == 'issues' && github.event.label.name == 'githound' && (github.event.issue.user.login == github.repository_owner || github.event.issue.author_association == 'OWNER')) ||
-           (github.event_name == 'issue_comment' && startsWith(github.event.comment.body, '/hound')) ||
-           (github.event_name == 'pull_request_review_comment' && startsWith(github.event.comment.body, '/hound'))
-         )
-       runs-on: ubuntu-latest
-       steps:
-         - name: Checkout Repository
-           uses: actions/checkout@v4
-           with:
-             fetch-depth: 0
-
-          - name: Run GitHound
-            uses: andrewevans0102/githound@main
-            with:
-              gemini-api-key: ${{ secrets.GEMINI_API_KEY }}
-              github-token: ${{ secrets.GITHUB_TOKEN }}
-              test-cmd: "npm test" # e.g. "pytest", "cargo test", "go test ./..."
-              typecheck-cmd: "npm run typecheck" # e.g. "mypy .", "tsc --noEmit"
-              max-retries: "3"
-   ```
-
-   *(Note: You can also run it via `npx --yes githound action` if preferred once published to npm).*
-
-3. **Optional Issue Guard Sub-Action**:
-   You can add an `issue-guard` job or separate workflow to automatically reject and lock issues opened by non-owners using GitHound's lightweight sub-action:
-   ```yaml
-   jobs:
-     issue-guard:
-       if: github.event_name == 'issues' && github.event.action == 'opened' && github.actor != github.repository_owner && github.event.issue.author_association != 'OWNER'
-       permissions:
-         issues: write
-       runs-on: ubuntu-latest
-       steps:
-         - name: Guard Non-Owner Issue
-           uses: andrewevans0102/githound/issue-guard@main
-   ```
-
-4. **Triggering Workflows**:
-   - Create or label any issue with `githound`. GitHound creates a feature branch, executes the task, tests it, and opens a PR.
-   - On the PR, review the diff and use `/hound <instructions>` comments to guide revisions.
+Follow the [GitHub Actions setup](#configure-github) above. GitHound runs the verification commands configured for your repository, so it can be used with projects written in TypeScript, Python, Go, Rust, and other languages. See [githound-doghouse](https://github.com/andrewevans0102/githound-doghouse) for a tested example workflow and test project.
 
 #### Option 2: Implementing the Core Guardrails in Your Own Tooling
 
@@ -280,11 +214,11 @@ When exposing LLM coding agents to GitHub issue and comment triggers, preventing
    - As a fail-safe, GitHound's action dispatcher programmatically validates that the event sender and issue author match the repository owner (`isOwner()`) before invoking the LLM or touching git branches.
    - If an unauthorized user triggers an action invocation, GitHound logs a warning and exits safely.
 
-3. **Issue Guard Sub-Action (`andrewevans0102/githound/issue-guard@main`)**:
+3. **Issue Guard Sub-Action (`andrewevans0102/githound/issue-guard@v1`)**:
    - GitHub does not support disabling issue creation for non-owners while keeping issues enabled for owners. GitHound provides a reusable composite sub-action (`issue-guard`) that automatically detects when an issue is opened by a non-owner, posts an explanatory comment, closes the issue as `not_planned`, and locks the conversation without exposing your LLM keys.
 
 ---
 
 ## 📄 License
 
-MIT © [Andrew Evans](https://github.com/andrewevans0102)
+Apache-2.0 © [Andrew Evans](https://github.com/andrewevans0102)
